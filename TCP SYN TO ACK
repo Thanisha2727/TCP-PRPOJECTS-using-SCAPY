@@ -1,0 +1,145 @@
+import socket
+import threading
+import queue
+import time
+
+target = ""
+start_port = 1
+end_port = 1024
+thread_count = 100
+
+q = queue.Queue()
+open_ports = []
+
+def resolve_target(host):
+    try:
+        ip = socket.gethostbyname(host)
+        return ip
+    except:
+        print("Unable to resolve host")
+        return None
+
+
+
+def grab_banner(sock):
+    try:
+        sock.settimeout(2)
+        banner = sock.recv(1024)
+        return banner.decode().strip()
+    except:
+        return ""
+
+
+
+def scan_port(ip, port):
+
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+
+        result = sock.connect_ex((ip, port))
+
+        if result == 0:
+            print(f"[OPEN] Port {port}")
+            banner = grab_banner(sock)
+
+            if banner:
+                print(f"  Banner: {banner}")
+
+            open_ports.append(port)
+
+        sock.close()
+
+    except:
+        pass
+
+
+def worker(ip):
+
+    while not q.empty():
+
+        port = q.get()
+
+        scan_port(ip, port)
+
+        q.task_done()
+
+def load_ports():
+
+    for port in range(start_port, end_port + 1):
+        q.put(port)
+
+
+
+def start_scan(ip):
+
+    load_ports()
+
+    threads = []
+
+    for _ in range(thread_count):
+
+        t = threading.Thread(target=worker, args=(ip,))
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
+
+def show_results():
+
+    print("\nScan Completed")
+
+    if open_ports:
+
+        print("Open Ports:")
+
+        for port in open_ports:
+            print(port)
+
+    else:
+        print("No open ports found")
+
+
+def main():
+
+    global target
+    global start_port
+    global end_port
+
+    print("==== TCP Port Scanner Project ====\n")
+
+    target = input("Enter target (domain/IP): ")
+
+    ip = resolve_target(target)
+
+    if not ip:
+        return
+
+    print(f"Resolved IP: {ip}")
+
+    try:
+
+        start_port = int(input("Start port: "))
+        end_port = int(input("End port: "))
+
+    except:
+        print("Invalid port range")
+        return
+
+    print("\nScanning...")
+
+    start_time = time.time()
+
+    start_scan(ip)
+
+    end_time = time.time()
+
+    show_results()
+
+    print(f"\nTime taken: {end_time - start_time:.2f} seconds")
+
+
+
+if __name__ == "__main__":
+    main()
